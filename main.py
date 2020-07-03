@@ -21,7 +21,7 @@ def recognize():
         while True:
             #test_img = camera.get_frame()
             if not success:
-                return("读取不到视频图片")
+                print("读取不到视频图片")
             m,n = detect_face(test_img)
             if m is not None:
                 break

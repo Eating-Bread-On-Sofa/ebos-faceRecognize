@@ -1,8 +1,8 @@
 # coding=utf-8
 import os
-import shutil
-import uuid
 import zipfile
+import threading
+import pymongo
 from image_confirm import detect_face
 from flask import Flask, request
 
@@ -25,6 +25,25 @@ def unzip_file(zip_src, dst_dir):
     else:
         return "请上传zip类型压缩文件"
 
+def sort():
+
+    myclient = pymongo.MongoClient('mongodb://localhost:27017/')
+    mydb = myclient['imgdb']
+    mycol = mydb["imgdata"]
+    num = 0
+    for x in mycol.find():
+        if num <= x['num']:
+            num = num + 1
+    return num
+
+def detect(target_path,file_name,num):
+    for dir_name in os.listdir(target_path):
+        dir_path = os.path.join(target_path,dir_name)
+        for img in os.listdir(dir_path): 
+            img_path = os.path.join(dir_path,img)
+            detect_face(img_path,file_name,num)
+
+
 @app.route("/upload", methods=["POST"])
 def upload():
     obj = request.files.get("file") 
@@ -43,11 +62,10 @@ def upload():
     os.remove(file_path)  # 删除文件
     if ret:
         return ret
-    for dir_name in os.listdir(target_path):
-        dir_path = os.path.join(target_path,dir_name)
-        for img in os.listdir(dir_path): 
-            img_path = os.path.join(dir_path,img)
-            detect_face(img_path)
+    num = sort()
+    t1 = threading.Thread(target = detect,args=(target_path,ret_list[0],num))
+    t1.setDaemon(True)
+    t1.start()
     return "上传成功"
 
 app.run(host='0.0.0.0',port=5000)

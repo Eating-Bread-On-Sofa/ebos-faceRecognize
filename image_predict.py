@@ -2,6 +2,8 @@
 import cv2
 import numpy as np
 import os
+import pymongo
+import pickle
 from image_detect import detect_face
 from draw_image import draw_rectangle,draw_text
 # 该函数将读取所有的训练图像，从每个图像检测人脸并将返回两个相同大小的列表，分别为脸部信息和标签
@@ -47,6 +49,30 @@ def prepare_training_data(data_folder_path):
     #print(labels)
     return faces, labels
 
+def prepare():
+
+    # 两个列表分别保存所有的脸部和标签
+    faces = []
+    labels = []
+    #从数据库中提取人脸信息
+    myclient = pymongo.MongoClient('mongodb://localhost:27017/')
+
+    mydb = myclient['imgdb']
+
+    mycol = mydb["imgdata"]
+
+    for x in mycol.find():
+        #将人脸添加到脸部列表并体添加相应的标签
+        face = pickle.loads(x['data'])
+
+        faces.append(face)
+
+        labels.append(x['num'])
+
+    return faces,labels
+
+
+
 def predict(test_img):
     #生成图像的副本，这样就能保留原始图像
     img = test_img.copy()
@@ -56,7 +82,7 @@ def predict(test_img):
         print("no face")
         return img
     #创建人脸识别器
-    faces, labels = prepare_training_data("collect/training_data")
+    faces, labels = prepare()
     face_recognizer = cv2.face.LBPHFaceRecognizer_create()
     face_recognizer.train(faces, np.array(labels))
     #预测人脸
@@ -65,13 +91,19 @@ def predict(test_img):
     if label[1]>=60:
         return error,img
     print(label)
-    subjects = ["mom", "dad","son"]
     # 获取由人脸识别器返回的相应标签的名称
-    label_text = subjects[label[0]]
+    myclient = pymongo.MongoClient("mongodb://localhost:27017/")
+    mydb = myclient["imgdb"]
+    mycol = mydb["imgdata"]
+    myquery = { "num": int(label[0]) }
+    label_text = ''
+    for myresult in mycol.find(myquery):
+        label_text = str(myresult['name'])
  
     # 在检测到的脸部周围画一个矩形
     draw_rectangle(img, rect)
     # 标出预测的名字
+    print(type(label_text))
     draw_text(img, label_text, rect[0], rect[1] - 5)
     #返回预测的图像
     return label_text,img
